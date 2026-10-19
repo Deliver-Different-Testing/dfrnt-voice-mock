@@ -1,14 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Badge, Card, CopyButton, Drawer, Field, Kpi, Modal, Switch, Tabs } from '../components/ui'
 import {
   actions, calls, defaultSettings, pricing, promptVersions as seedPrompts, speeds,
   toolSchemaSummary, usageMinutes, type CallRow, type PromptVersion, type Settings,
 } from '../data/mock'
-import { accents, dfrntNumber, methodLabel, providers, sip, STANDARD_GREETING, voiceCatalogue, type Accent } from '../data/phone'
+import {
+  ACCENTS, defaultVoiceFor, exampleProviderRef, exampleSip, METHOD_LABEL, METHOD_ORDER, METHOD_TONE, PHONE_SYSTEMS,
+  spokenGreeting, STANDARD_GREETING, toE164, voiceLabel, VOICES, type PhoneSystemId, type PhoneSystemPreset,
+} from '../data/phone'
 
-const COMPANY = 'Urgent Couriers'
-const spoken = (greeting: string) => (greeting.trim() || STANDARD_GREETING).replaceAll('{company}', COMPANY)
+/** The tenant's phone system row, as GET admin/threecx/agent/phone returns it (example values). */
+type PhoneState = {
+  phoneSystem: PhoneSystemId
+  connected: boolean
+  numberE164: string | null
+  sipDomain?: string
+  sipUsername?: string
+  providerResourceRef?: string
+}
+
+const PLATFORM_NOT_READY = "The voice platform isn't set up on this deployment yet. Contact support."
 
 type TabId = 'settings' | 'prompts' | 'activity' | 'telephony' | 'usage'
 const TABS: { id: TabId; label: string }[] = [
@@ -23,12 +35,17 @@ function Proposed() {
   return <Badge tone="orange">Proposed</Badge>
 }
 
+function Future({ children = 'Future' }: { children?: string }) {
+  return <Badge tone="orange">{children}</Badge>
+}
+
 export default function VoiceAgent() {
   const { tab } = useParams()
   const nav = useNavigate()
   const current: TabId = TABS.some((t) => t.id === tab) ? (tab as TabId) : 'settings'
   const [settings, setSettings] = useState<Settings>(defaultSettings)
-  const [testOpen, setTestOpen] = useState(false)
+  const [phone, setPhone] = useState<PhoneState | null>(null)
+  const [platformReady, setPlatformReady] = useState(true)
 
   return (
     <div className="stack">
@@ -36,42 +53,76 @@ export default function VoiceAgent() {
         <div className="small muted">Integrations / Voice agent</div>
         <h1 style={{ marginTop: 4 }}>Voice agent</h1>
         <p className="small muted" style={{ marginTop: 4 }}>
-          Answers your clients' calls on any phone system. Caller pop-ups for 3CX stay under Integrations / 3CX.
+          An AI voice agent that answers your clients' calls on your phone system. Caller pop-ups for 3CX stay
+          under Integrations / 3CX.
         </p>
       </div>
 
-      <StatusCard settings={settings} onToggle={(v) => setSettings({ ...settings, enabled: v })} onTestCall={() => setTestOpen(true)} />
+      <StatusCard settings={settings} phone={phone} onOpenPhone={() => nav('/voice-agent/telephony')} />
 
       <Tabs tabs={TABS} value={current} onChange={(t) => nav(`/voice-agent/${t}`)} />
 
       {current === 'settings' && <SettingsSection settings={settings} onChange={setSettings} />}
       {current === 'prompts' && <PromptsSection />}
       {current === 'activity' && <ActivitySection />}
-      {current === 'telephony' && <PhoneSystemSection />}
+      {current === 'telephony' && (
+        <PhoneSystemSection phone={phone} onChange={setPhone} platformReady={platformReady} onPlatformReady={setPlatformReady} />
+      )}
       {current === 'usage' && <UsageSection />}
-
-      <TestCallModal open={testOpen} onClose={() => setTestOpen(false)} greeting={spoken(settings.greeting)} />
     </div>
   )
 }
 
-function StatusCard({ settings, onToggle, onTestCall }: { settings: Settings; onToggle: (v: boolean) => void; onTestCall: () => void }) {
+/** Readiness, as GET admin/threecx/agent/readiness works it out (tenant link and session signing assumed fine). */
+function blockers(settings: Settings, phone: PhoneState | null) {
+  const b: string[] = []
+  if (!phone?.connected) b.push('Connect your phone system.')
+  if (!settings.enabled) b.push("Turn on 'Let the voice agent take calls'.")
+  return b
+}
+
+function StatusCard({ settings, phone, onOpenPhone }: { settings: Settings; phone: PhoneState | null; onOpenPhone: () => void }) {
+  const [confirm, setConfirm] = useState<'regenerate' | 'disconnect' | null>(null)
+  const b = blockers(settings, phone)
   return (
     <Card>
-      <div className="grid-3">
-        <Kpi label="Agent key" value="Connected" sub="Key id vak_uc_51f2 · created 7 Oct" />
-        <Kpi label="Agent" value={settings.enabled ? 'On' : 'Off'} sub={settings.enabled ? 'Answering calls routed to it' : 'Every call goes to the transfer number'} />
-        <Kpi label="Last call" value="16:40" sub="Fri 17 Oct · transferred" />
+      <div className="row" style={{ marginBottom: 8 }}>
+        <strong>Status</strong>
+        <Badge tone="green">Connected</Badge>
       </div>
-      <div className="row between" style={{ marginTop: 16 }}>
-        <div style={{ flex: 1, minWidth: 240 }}>
-          <Switch on={settings.enabled} onChange={onToggle} label="Answer calls with the voice agent" hint="Handoff always works, even when this is off." />
+      <p className="small muted" style={{ marginTop: 0 }}>
+        The voice agent signs in with key <strong>vak_uc_51f2</strong>. Download the tool definitions and load them into
+        your voice agent platform, along with the key and secret.
+      </p>
+      {b.length === 0 ? (
+        <div className="alert green" style={{ marginBottom: 16 }}>Ready to take calls.</div>
+      ) : (
+        <div className="alert orange" style={{ marginBottom: 16 }}>
+          <strong>Not taking calls yet</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {b.map((x) => (
+              <li key={x}>
+                {x}
+                {x.startsWith('Connect your phone') && <> <button type="button" className="btn ghost small" onClick={onOpenPhone}>Go to Phone system</button></>}
+              </li>
+            ))}
+          </ul>
         </div>
-        <div className="row">
-          <button className="btn outline" onClick={onTestCall}>Place a test call</button>
-          <button className="btn outline">Download tool definitions</button>
-        </div>
+      )}
+      <div className="row" style={{ flexWrap: 'wrap' }}>
+        <button className="btn">Download tool definitions</button>
+        <button className="btn outline" onClick={() => setConfirm('regenerate')}>Regenerate key</button>
+        <button className="btn outline" style={{ color: 'var(--red)' }} onClick={() => setConfirm('disconnect')}>Disconnect</button>
       </div>
+      <Modal open={confirm === 'regenerate'} onClose={() => setConfirm(null)} title="Regenerate the voice agent key?">
+        <p className="small">This issues a new key and secret and stops the current one working. You'll need to give the new one to whoever runs your voice agent.</p>
+        <div className="row"><button className="btn" onClick={() => setConfirm(null)}>Regenerate</button><button className="btn outline" onClick={() => setConfirm(null)}>Cancel</button></div>
+      </Modal>
+      <Modal open={confirm === 'disconnect'} onClose={() => setConfirm(null)} title="Disconnect the voice agent?">
+        <p className="small">The voice agent stops working straight away and callers go to your normal phone routing. Create a new key any time to turn it back on.</p>
+        <p className="note">In this mock nothing is disconnected.</p>
+        <div className="row"><button className="btn" onClick={() => setConfirm(null)}>Disconnect</button><button className="btn outline" onClick={() => setConfirm(null)}>Cancel</button></div>
+      </Modal>
     </Card>
   )
 }
@@ -85,6 +136,7 @@ function SettingsSection({ settings, onChange }: { settings: Settings; onChange:
       <div className="grid-2">
         <Card title="What the agent may do" lead="Writes are off until you turn them on. Tools the agent can't use return not_allowed and it hands over.">
           <div className="stack">
+            <Switch on={settings.enabled} onChange={(v) => set('enabled', v)} label="Let the voice agent take calls" hint="When this is off, every tool except handing over to a person is refused." />
             <Switch on={settings.allowLookup} onChange={(v) => set('allowLookup', v)} label="Look up jobs" hint="list_jobs and get_job, for the caller's own account only" />
             <Switch on={settings.allowQuote} onChange={(v) => set('allowQuote', v)} label="Give prices" hint="get_quote, through the rate engine as the caller's client" />
             <Switch on={settings.allowBook} onChange={(v) => set('allowBook', v)} label="Book jobs" hint="book_job. Retries on the same call never book twice." />
@@ -134,48 +186,48 @@ function SettingsSection({ settings, onChange }: { settings: Settings; onChange:
         </Card>
       </div>
 
-      <Card title="How the agent sounds" actions={<Proposed />} lead="Read by the voice runtime at the start of every call.">
+      <Card title="How it sounds" lead="Read by the voice runtime at the start of every call.">
         <div className="grid-2">
           <div className="stack">
-            <Field label="Persona"><input value={settings.persona} onChange={(e) => set('persona', e.target.value)} /></Field>
-            <Field label="Greeting" hint="The first thing callers hear. {company} becomes your company name. Leave empty for the standard greeting.">
-              <textarea style={{ minHeight: 90, fontFamily: 'inherit', fontSize: 14 }} value={settings.greeting} placeholder={STANDARD_GREETING} onChange={(e) => set('greeting', e.target.value)} />
+            <Field label="Company name" hint="Your company name the way the agent should say it.">
+              <input maxLength={100} value={settings.companyName} onChange={(e) => set('companyName', e.target.value)} />
             </Field>
-            <div className="small muted">Callers hear: “{spoken(settings.greeting)}”</div>
-            <div className="row">
-              <button type="button" className="btn outline small" onClick={() => set('greeting', STANDARD_GREETING)}>Use the standard greeting</button>
-            </div>
+            <Field label="Greeting" hint="The first thing callers hear. {company} becomes your company name. Leave empty for the standard greeting.">
+              <input value={settings.greeting} placeholder={STANDARD_GREETING} onChange={(e) => set('greeting', e.target.value)} />
+            </Field>
+            <div className="small muted">Callers will hear: “{spokenGreeting(settings.greeting, settings.companyName)}”</div>
+            <Field label="Personality" hint="A sentence or two on tone, for example: friendly, brief, uses first names.">
+              <textarea style={{ minHeight: 70, fontFamily: 'inherit', fontSize: 14 }} value={settings.persona} onChange={(e) => set('persona', e.target.value)} />
+            </Field>
           </div>
           <div className="stack">
-            <Field label="Accent" hint="Also sets how dates, times and prices are read out">
+            <Field label="Accent" hint="Also sets how dates, times and prices are read out.">
               <select
-                value={settings.accent}
+                value={settings.locale}
                 onChange={(e) => {
-                  const accent = e.target.value as Accent
-                  const first = voiceCatalogue.find((v) => v.accent === accent)!
-                  onChange({ ...settings, accent, voiceId: first.id })
+                  const locale = e.target.value
+                  if (locale === settings.locale) return
+                  // Voices belong to an accent, so a new accent starts on its default voice.
+                  onChange({ ...settings, locale, voiceId: defaultVoiceFor(locale)?.id ?? '' })
                 }}
               >
-                {accents.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                {ACCENTS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
               </select>
             </Field>
-            <Field label="Voice">
-              <div className="scenario-list">
-                {voiceCatalogue.filter((v) => v.accent === settings.accent).map((v) => (
-                  <button key={v.id} type="button" className={settings.voiceId === v.id ? 'active' : ''} onClick={() => set('voiceId', v.id)}>
-                    {v.name}<span>{v.gender} · {v.note}</span>
-                  </button>
-                ))}
-              </div>
+            <Field label="Voice" hint="The voices available for this accent.">
+              <select value={settings.voiceId} onChange={(e) => set('voiceId', e.target.value)}>
+                {VOICES.filter((v) => v.locale === settings.locale).map((v) => <option key={v.id} value={v.id}>{voiceLabel(v)}</option>)}
+              </select>
             </Field>
             <div className="row">
-              <button type="button" className="btn outline small">Play a sample</button>
+              <button type="button" className="btn outline small" disabled title="Not built yet (N2)">Play a sample</button>
+              <Future>Future (N2)</Future>
             </div>
           </div>
         </div>
       </Card>
 
-      <Card title="Business hours" actions={<Proposed />} lead="Outside these hours the agent takes a message or transfers straight away.">
+      <Card title="When it answers" lead="Your local time. Outside these hours the agent takes a message or transfers straight away.">
         <div className="stack">
           <div className="pill-list">
             {days.map((d, i) => (
@@ -382,86 +434,231 @@ function ActivitySection() {
   )
 }
 
-function PhoneSystemSection() {
-  const [providerId, setProviderId] = useState('3cx')
-  const [revealed, setRevealed] = useState(false)
-  const [connected, setConnected] = useState(false)
-  const p = providers.find((x) => x.id === providerId)!
-  const number = dfrntNumber.replace(' (example)', '')
+// ── Phone system (mirrors pages/VoiceAgent/PhoneSystemCard.tsx) ───────────────
+
+function Steps({ preset }: { preset: PhoneSystemPreset }) {
+  return (
+    <div>
+      <h4 style={{ margin: '0 0 10px' }}>{preset.name} steps</h4>
+      <ol className="steps">
+        {preset.steps.map((s) => <li key={s}>{s}</li>)}
+      </ol>
+      <p className="note" style={{ marginBottom: 0 }}>{preset.transferBack}</p>
+    </div>
+  )
+}
+
+function NumberField({ value, onChange, label = 'Phone number the agent answers' }: { value: string; onChange: (v: string) => void; label?: string }) {
+  return (
+    <Field label={label} hint="The number your callers ring, in international format, for example +64 9 300 1234.">
+      <input inputMode="tel" placeholder="+64…" value={value} onChange={(e) => onChange(e.target.value)} />
+    </Field>
+  )
+}
+
+function CopyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="kv"><span className="small muted" style={{ width: 90 }}>{label}</span><code>{value}</code><CopyButton text={value} /></div>
+  )
+}
+
+function ComingSoonNumber() {
+  return (
+    <div className="alert orange">
+      <div className="row" style={{ marginBottom: 6 }}><strong>Your DFRNT number</strong><Badge tone="orange">Number coming soon</Badge></div>
+      Forwarding needs a local number for the agent, and we're still setting those up. Your choice is saved and the
+      number will show here when it's ready. Your customers keep calling your normal number; you forward the calls you
+      want answered to this one.
+    </div>
+  )
+}
+
+function SipTrunkForm({ preset, disabled, onConnect }: { preset: PhoneSystemPreset; disabled: boolean; onConnect: (n: string) => void }) {
+  const [number, setNumber] = useState('')
   return (
     <div className="stack">
-      <Card title="Your phone system" actions={<Proposed />} lead="Pick what you use. We fill in everything we can and show the few steps left for you.">
-        <div className="grid-2">
-          <Field label="Phone system">
-            <select
-              value={providerId}
-              onChange={(e) => {
-                setProviderId(e.target.value)
-                setRevealed(false)
-                setConnected(false)
-              }}
-            >
-              {providers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-            </select>
-          </Field>
-          <div className="stack" style={{ gap: 6 }}>
-            <div className="row"><span className="small muted">How it connects</span><Badge tone={p.method === 'auto' ? 'green' : p.method === 'trunk' ? 'blue' : 'orange'}>{methodLabel[p.method]}</Badge></div>
-            <div className="small muted">{p.needs}</div>
+      <p className="small muted" style={{ margin: 0 }}>
+        We create a SIP trunk for your company and show the domain, username and password to enter in
+        {preset.id === '3cx' ? ' 3CX' : ' your phone system'}.
+      </p>
+      <NumberField value={number} onChange={setNumber} />
+      <div className="row"><button className="btn" disabled={disabled || !number.trim()} onClick={() => onConnect(toE164(number))}>Create trunk</button></div>
+    </div>
+  )
+}
+
+function TwilioForm({ disabled, onConnect }: { disabled: boolean; onConnect: (n: string) => void }) {
+  const [sid, setSid] = useState('')
+  const [token, setToken] = useState('')
+  const [number, setNumber] = useState('')
+  return (
+    <div className="stack">
+      <Field label="Account SID"><input placeholder="AC…" value={sid} onChange={(e) => setSid(e.target.value)} /></Field>
+      <Field label="Auth token"><input type="password" value={token} onChange={(e) => setToken(e.target.value)} /></Field>
+      <NumberField label="Twilio number the agent answers" value={number} onChange={setNumber} />
+      <p className="note" style={{ margin: 0 }}>Used once to set up the connection. We don't store it or use it for anything else.</p>
+      <div className="row">
+        <button className="btn" disabled={disabled || !sid.trim() || !token.trim() || !number.trim()} onClick={() => onConnect(toE164(number))}>Connect Twilio</button>
+      </div>
+    </div>
+  )
+}
+
+function TelnyxForm({ disabled, onConnect }: { disabled: boolean; onConnect: (n: string) => void }) {
+  const [key, setKey] = useState('')
+  const [number, setNumber] = useState('')
+  return (
+    <div className="stack">
+      <Field label="API key"><input type="password" placeholder="KEY…" value={key} onChange={(e) => setKey(e.target.value)} /></Field>
+      <NumberField label="Telnyx number the agent answers" value={number} onChange={setNumber} />
+      <p className="note" style={{ margin: 0 }}>Used once to set up the connection. We don't store it or use it for anything else.</p>
+      <div className="row">
+        <button className="btn" disabled={disabled || !key.trim() || !number.trim()} onClick={() => onConnect(toE164(number))}>Connect Telnyx</button>
+      </div>
+    </div>
+  )
+}
+
+function ConnectedPhoneSystem({ phone, preset, sipPassword, onDisconnect }: {
+  phone: PhoneState
+  preset: PhoneSystemPreset
+  sipPassword: string | null
+  onDisconnect: () => void
+}) {
+  const forwarding = preset.method === 'forwarding'
+  return (
+    <div className="stack">
+      <div className="row">
+        <strong>{preset.name}</strong>
+        <Badge tone={METHOD_TONE[preset.method]}>{METHOD_LABEL[preset.method]}</Badge>
+        {phone.connected && <Badge tone="green">Connected</Badge>}
+      </div>
+      {phone.numberE164 && <div className="small">Calls to <strong>{phone.numberE164}</strong> go to the voice agent.</div>}
+      {preset.method === 'setup' && phone.providerResourceRef && (
+        <div className="small muted">We created <strong>{phone.providerResourceRef}</strong> in your {preset.name} account.</div>
+      )}
+      {preset.method === 'sip' && sipPassword && (
+        <div className="alert orange">
+          <strong>Copy the trunk password now — it won't be shown again. Store it in your phone system.</strong>
+          <div className="secret" style={{ marginTop: 10 }}>
+            <CopyRow label="Domain" value={phone.sipDomain ?? ''} />
+            <CopyRow label="Username" value={phone.sipUsername ?? ''} />
+            <CopyRow label="Password" value={sipPassword} />
           </div>
         </div>
-      </Card>
+      )}
+      {preset.method === 'sip' && !sipPassword && (
+        <div className="stack" style={{ gap: 8 }}>
+          <div className="secret">
+            <CopyRow label="Domain" value={phone.sipDomain ?? ''} />
+            <CopyRow label="Username" value={phone.sipUsername ?? ''} />
+          </div>
+          <p className="note" style={{ margin: 0 }}>The password was shown once, when the trunk was created. If it's lost, disconnect and create the trunk again.</p>
+        </div>
+      )}
+      {forwarding && <ComingSoonNumber />}
+      <Steps preset={preset} />
+      <div className="row">
+        {forwarding && !phone.connected
+          ? <button className="btn outline" onClick={onDisconnect}>Choose a different phone system</button>
+          : <button className="btn outline" style={{ color: 'var(--red)' }} onClick={onDisconnect}>Disconnect</button>}
+      </div>
+    </div>
+  )
+}
 
-      <div className="grid-2">
-        {p.method === 'auto' && (
-          <Card title={`Connect ${p.name}`} lead="Used once to set up the connection. We don't use it for anything else.">
-            <div className="stack">
-              {p.credentials!.map((c) => (
-                <Field key={c.label} label={c.label}><input placeholder={c.placeholder} /></Field>
-              ))}
-              <Field label="Number the agent answers">
-                <select disabled={!connected}>
-                  <option>{connected ? '+64 9 000 0150 (example)' : 'Connect first'}</option>
+function PhoneSystemSection({ phone, onChange, platformReady, onPlatformReady }: {
+  phone: PhoneState | null
+  onChange: (p: PhoneState | null) => void
+  platformReady: boolean
+  onPlatformReady: (v: boolean) => void
+}) {
+  const [picked, setPicked] = useState<PhoneSystemId | ''>('')
+  const [sipPassword, setSipPassword] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const current = phone ? PHONE_SYSTEMS.find((p) => p.id === phone.phoneSystem) : undefined
+  const preset = PHONE_SYSTEMS.find((p) => p.id === picked)
+  const notReady = !platformReady
+
+  const disconnect = () => {
+    setConfirm(false)
+    if (phone?.connected && current) {
+      setMessage(current.method === 'setup'
+        ? `Disconnected. The trunk in your ${current.name} account (${phone.providerResourceRef}) is still there; remove it in ${current.name} if you no longer need it.`
+        : 'Disconnected. Remove the trunk from your phone system too.')
+    } else setMessage(null)
+    setSipPassword(null)
+    setPicked('')
+    onChange(null)
+  }
+
+  const connectSip = (numberE164: string) => {
+    setSipPassword(exampleSip.password)
+    onChange({ phoneSystem: preset!.id, connected: true, numberE164, sipDomain: exampleSip.domain, sipUsername: exampleSip.username })
+  }
+  const connectSetup = (id: 'twilio' | 'telnyx') => (numberE164: string) =>
+    onChange({ phoneSystem: id, connected: true, numberE164, providerResourceRef: exampleProviderRef[id] })
+
+  return (
+    <div className="stack">
+      <Card title="Phone system" lead="Pick what you use. We fill in everything we can and show the few steps left for you.">
+        {current ? (
+          <ConnectedPhoneSystem phone={phone!} preset={current} sipPassword={sipPassword} onDisconnect={() => (phone!.connected ? setConfirm(true) : disconnect())} />
+        ) : (
+          <div className="stack">
+            {notReady && <div className="alert orange">{PLATFORM_NOT_READY}</div>}
+            {message && <div className="alert blue small">{message}</div>}
+            <div className="grid-2">
+              <Field label="Phone system">
+                <select value={picked} onChange={(e) => { setPicked(e.target.value as PhoneSystemId); setMessage(null) }}>
+                  <option value="" disabled>Pick your phone system</option>
+                  {METHOD_ORDER.map((m) => (
+                    <optgroup key={m} label={METHOD_LABEL[m]}>
+                      {PHONE_SYSTEMS.filter((p) => p.method === m).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </Field>
-              <div className="row">
-                <button className="btn" onClick={() => setConnected(true)}>{connected ? 'Connected' : `Connect ${p.name}`}</button>
-              </div>
-              {connected && <div className="alert green small">Trunk created and pointed at the agent. Place a test call to check.</div>}
+              {preset && (
+                <div className="stack" style={{ gap: 6 }}>
+                  <div className="row"><span className="small muted">How it connects</span><Badge tone={METHOD_TONE[preset.method]}>{METHOD_LABEL[preset.method]}</Badge></div>
+                  <div className="small muted">{preset.needs}</div>
+                </div>
+              )}
             </div>
-          </Card>
-        )}
 
-        {p.method === 'trunk' && (
-          <Card title="SIP trunk details" lead="Generated for your company. Enter these in your phone system.">
-            <div className="secret">
-              <div className="kv"><span className="small muted" style={{ width: 90 }}>Domain</span><code>{sip.domain}</code><CopyButton text={sip.domain} /></div>
-              <div className="kv"><span className="small muted" style={{ width: 90 }}>Username</span><code>{sip.username}</code><CopyButton text={sip.username} /></div>
-              <div className="kv">
-                <span className="small muted" style={{ width: 90 }}>Password</span>
-                {revealed ? <><code>{sip.password}</code><CopyButton text={sip.password} /></> : <button className="btn outline small" onClick={() => setRevealed(true)}>Show once</button>}
-              </div>
-            </div>
-            {revealed && <div className="alert orange" style={{ marginTop: 12 }}>This password won't be shown again. Store it in your phone system now. Regenerate it here if it's lost.</div>}
-          </Card>
+            {preset?.method === 'sip' && <SipTrunkForm key={preset.id} preset={preset} disabled={notReady} onConnect={connectSip} />}
+            {preset?.id === 'twilio' && <TwilioForm disabled={notReady} onConnect={connectSetup('twilio')} />}
+            {preset?.id === 'telnyx' && <TelnyxForm disabled={notReady} onConnect={connectSetup('telnyx')} />}
+            {preset?.method === 'forwarding' && (
+              <>
+                <ComingSoonNumber />
+                <div className="row">
+                  <button className="btn" onClick={() => onChange({ phoneSystem: preset.id, connected: false, numberE164: null })}>Save choice</button>
+                </div>
+              </>
+            )}
+            {preset && <Steps preset={preset} />}
+          </div>
         )}
+      </Card>
 
-        {p.method === 'forward' && (
-          <Card title="Your DFRNT number" lead="A local number for the agent, set up when you pick this phone system. Billed at cost.">
-            <div className="secret">
-              <div className="kv"><span className="small muted" style={{ width: 90 }}>Number</span><code>{number}</code><CopyButton text={number} /></div>
-            </div>
-            <p className="note">Your customers keep calling your normal number. You forward the calls you want answered to this one.</p>
-          </Card>
-        )}
-
-        <Card title={`${p.name} steps`}>
-          <ol className="steps">
-            {p.steps.map((s) => <li key={s}>{s.replace('your DFRNT number', number)}</li>)}
-            <li>Place a test call from this page.</li>
-          </ol>
-          <p className="note">{p.transferBack}</p>
-        </Card>
+      <div className="note row" style={{ gap: 8 }}>
+        <span>Mock only:</span>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="checkbox" checked={notReady} onChange={(e) => onPlatformReady(!e.target.checked)} />
+          show the "voice platform isn't set up" state (connect buttons disabled until LiveKit is configured)
+        </label>
       </div>
+
+      <Modal open={confirm} onClose={() => setConfirm(false)} title={`Disconnect ${current?.name ?? ''}?`}>
+        <p className="small">
+          Calls stop reaching the voice agent straight away. We remove the trunk we created; anything set up in
+          {' '}{current?.name} itself stays until you remove it there.
+        </p>
+        <div className="row"><button className="btn" onClick={disconnect}>Disconnect</button><button className="btn outline" onClick={() => setConfirm(false)}>Cancel</button></div>
+      </Modal>
     </div>
   )
 }
@@ -525,49 +722,5 @@ function UsageSection() {
         </div>
       </Card>
     </div>
-  )
-}
-
-const testSteps = ['Dialling', 'Ringing', 'Connected', 'Playing greeting', 'Hung up']
-
-function TestCallModal({ open, onClose, greeting }: { open: boolean; onClose: () => void; greeting: string }) {
-  const [num, setNum] = useState('')
-  const [step, setStep] = useState(-1)
-  const timer = useRef<number | null>(null)
-  useEffect(() => () => { if (timer.current) window.clearInterval(timer.current) }, [])
-  const start = () => {
-    setStep(0)
-    let i = 0
-    timer.current = window.setInterval(() => {
-      i += 1
-      setStep(i)
-      if (i >= testSteps.length - 1 && timer.current) window.clearInterval(timer.current)
-    }, 1100)
-  }
-  const close = () => {
-    if (timer.current) window.clearInterval(timer.current)
-    setStep(-1)
-    onClose()
-  }
-  return (
-    <Modal open={open} onClose={close} title="Place a test call">
-      <div className="stack">
-        <p className="small muted" style={{ margin: 0 }}>The agent calls this number using the current draft settings, so you can hear a change before publishing it. Staff numbers only.</p>
-        <Field label="Your number"><input value={num} onChange={(e) => setNum(e.target.value)} placeholder="021 000 0000" /></Field>
-        {step >= 0 && (
-          <div className="stack">
-            <div className="state-strip">
-              {testSteps.map((s, i) => <Badge key={s} tone={i < step ? 'green' : i === step ? 'blue' : 'gray'}>{s}</Badge>)}
-            </div>
-            {step >= 3 && <div className="alert blue small">“{greeting}”</div>}
-            {step >= testSteps.length - 1 && <div className="alert green small">Test call finished. It shows in Activity as a test.</div>}
-          </div>
-        )}
-        <div className="row">
-          <button className="btn" disabled={!num.trim() || (step >= 0 && step < testSteps.length - 1)} onClick={start}>{step >= testSteps.length - 1 ? 'Call again' : 'Call me'}</button>
-          <button className="btn outline" onClick={close}>Close</button>
-        </div>
-      </div>
-    </Modal>
   )
 }

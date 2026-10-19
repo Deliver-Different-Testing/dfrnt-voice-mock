@@ -16,11 +16,12 @@ export type Settings = {
   bookingCutoffLocalTime: string | null
   cancelCutoffStatuses: string
   handoffNumber: string | null
-  // Proposed (Group 2)
+  // How it sounds (built 20 Oct): companyName fills {company}; locale is shown as Accent
+  companyName: string
   persona: string
   greeting: string
   voiceId: string
-  accent: 'nz' | 'au' | 'uk' | 'us'
+  locale: string
   hoursDays: boolean[] // Mon..Sun
   hoursStart: string
   hoursEnd: string
@@ -41,10 +42,11 @@ export const defaultSettings: Settings = {
   bookingCutoffLocalTime: '15:30',
   cancelCutoffStatuses: 'not yet allocated',
   handoffNumber: 'Queue 301 (Dispatch)',
-  persona: 'Urgent Couriers automated assistant',
-  greeting: "Hi, you've reached {company}. I'm the automated assistant. How can I help?",
-  voiceId: '5a033900-2ed6-4fd4-a257-707f2688e713', // Maia
-  accent: 'nz',
+  companyName: 'Urgent Couriers',
+  persona: 'Friendly, brief, uses first names.',
+  greeting: '', // empty = the standard greeting
+  voiceId: '5a033900-2ed6-4fd4-a257-707f2688e713', // Maia, the New Zealand default
+  locale: 'en-NZ',
   hoursDays: [true, true, true, true, true, false, false],
   hoursStart: '07:30',
   hoursEnd: '18:00',

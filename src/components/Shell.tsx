@@ -8,7 +8,7 @@ const mockLinks: { to: string; label: string; end?: boolean }[] = [
 
 // Integration Manager's sidebar, with Voice agent as its own integration next to 3CX.
 const integrations: { label: string; to?: string }[] = [
-  { label: '3CX' },
+  { label: '3CX', to: '/3cx' },
   { label: 'Voice agent', to: '/voice-agent' },
   { label: 'FedEx' },
   { label: 'Shopify' },
@@ -22,6 +22,9 @@ function Crumbs() {
   const { pathname } = useLocation()
   if (pathname.startsWith('/voice-agent')) {
     return <><span className="dim hide-sm">Integrations</span><span className="hide-sm">›</span>Voice agent<span>›</span>Setup</>
+  }
+  if (pathname.startsWith('/3cx')) {
+    return <><span className="dim hide-sm">Integrations</span><span className="hide-sm">›</span>3CX<span>›</span>Setup</>
   }
   if (pathname.startsWith('/simulator')) return <>Call simulator</>
   return <>About this mock</>
@@ -52,6 +55,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <nav className="topbar" aria-label="Main (small screens)">
             <NavLink to="/voice-agent" className={({ isActive }) => (isActive ? 'active' : '')}>Voice agent</NavLink>
+            <NavLink to="/3cx" className={({ isActive }) => (isActive ? 'active' : '')}>3CX</NavLink>
             {mockLinks.map((l) => <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => (isActive ? 'active' : '')}>{l.label}</NavLink>)}
           </nav>
           <main className="main">{children}</main>
