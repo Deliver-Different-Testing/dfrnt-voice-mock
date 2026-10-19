@@ -2,16 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Badge, Card, CopyButton, Drawer, Field, Kpi, Modal, Switch, Tabs } from '../components/ui'
 import {
-  actions, calls, defaultSettings, pricing, promptVersions as seedPrompts, speeds, telephony,
-  toolSchemaSummary, usageMinutes, voices, type CallRow, type PromptVersion, type Settings,
+  actions, calls, defaultSettings, pricing, promptVersions as seedPrompts, speeds,
+  toolSchemaSummary, usageMinutes, type CallRow, type PromptVersion, type Settings,
 } from '../data/mock'
+import { accents, dfrntNumber, methodLabel, providers, sip, STANDARD_GREETING, voiceCatalogue, type Accent } from '../data/phone'
+
+const COMPANY = 'Urgent Couriers'
+const spoken = (greeting: string) => (greeting.trim() || STANDARD_GREETING).replaceAll('{company}', COMPANY)
 
 type TabId = 'settings' | 'prompts' | 'activity' | 'telephony' | 'usage'
 const TABS: { id: TabId; label: string }[] = [
   { id: 'settings', label: 'Settings' },
   { id: 'prompts', label: 'Prompt versions' },
   { id: 'activity', label: 'Activity' },
-  { id: 'telephony', label: 'Telephony' },
+  { id: 'telephony', label: 'Phone system' },
   { id: 'usage', label: 'Usage' },
 ]
 
@@ -29,9 +33,11 @@ export default function VoiceAgent() {
   return (
     <div className="stack">
       <div>
-        <div className="small muted">Integrations / 3CX</div>
-        <h1 style={{ marginTop: 4 }}>3CX</h1>
-        <Tabs tabs={[{ id: 'softphone', label: 'Softphone' }, { id: 'voice', label: 'Voice agent' }]} value="voice" onChange={() => {}} />
+        <div className="small muted">Integrations / Voice agent</div>
+        <h1 style={{ marginTop: 4 }}>Voice agent</h1>
+        <p className="small muted" style={{ marginTop: 4 }}>
+          Answers your clients' calls on any phone system. Caller pop-ups for 3CX stay under Integrations / 3CX.
+        </p>
       </div>
 
       <StatusCard settings={settings} onToggle={(v) => setSettings({ ...settings, enabled: v })} onTestCall={() => setTestOpen(true)} />
@@ -41,10 +47,10 @@ export default function VoiceAgent() {
       {current === 'settings' && <SettingsSection settings={settings} onChange={setSettings} />}
       {current === 'prompts' && <PromptsSection />}
       {current === 'activity' && <ActivitySection />}
-      {current === 'telephony' && <TelephonySection />}
+      {current === 'telephony' && <PhoneSystemSection />}
       {current === 'usage' && <UsageSection />}
 
-      <TestCallModal open={testOpen} onClose={() => setTestOpen(false)} greeting={settings.greeting} />
+      <TestCallModal open={testOpen} onClose={() => setTestOpen(false)} greeting={spoken(settings.greeting)} />
     </div>
   )
 }
@@ -132,26 +138,40 @@ function SettingsSection({ settings, onChange }: { settings: Settings; onChange:
         <div className="grid-2">
           <div className="stack">
             <Field label="Persona"><input value={settings.persona} onChange={(e) => set('persona', e.target.value)} /></Field>
-            <Field label="Greeting" hint="First thing the caller hears">
-              <textarea style={{ minHeight: 90, fontFamily: 'inherit', fontSize: 14 }} value={settings.greeting} onChange={(e) => set('greeting', e.target.value)} />
+            <Field label="Greeting" hint="The first thing callers hear. {company} becomes your company name. Leave empty for the standard greeting.">
+              <textarea style={{ minHeight: 90, fontFamily: 'inherit', fontSize: 14 }} value={settings.greeting} placeholder={STANDARD_GREETING} onChange={(e) => set('greeting', e.target.value)} />
             </Field>
-            <Field label="Language">
-              <select value={settings.locale} onChange={(e) => set('locale', e.target.value as Settings['locale'])}>
-                <option value="en-NZ">English (New Zealand)</option>
-                <option value="en-AU">English (Australia)</option>
-                <option value="en-US">English (United States)</option>
+            <div className="small muted">Callers hear: “{spoken(settings.greeting)}”</div>
+            <div className="row">
+              <button type="button" className="btn outline small" onClick={() => set('greeting', STANDARD_GREETING)}>Use the standard greeting</button>
+            </div>
+          </div>
+          <div className="stack">
+            <Field label="Accent" hint="Also sets how dates, times and prices are read out">
+              <select
+                value={settings.accent}
+                onChange={(e) => {
+                  const accent = e.target.value as Accent
+                  const first = voiceCatalogue.find((v) => v.accent === accent)!
+                  onChange({ ...settings, accent, voiceId: first.id })
+                }}
+              >
+                {accents.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
               </select>
             </Field>
-          </div>
-          <Field label="Voice">
-            <div className="scenario-list">
-              {voices.map((v) => (
-                <button key={v.id} type="button" className={settings.voiceId === v.id ? 'active' : ''} onClick={() => set('voiceId', v.id)}>
-                  {v.label}<span>{v.note}</span>
-                </button>
-              ))}
+            <Field label="Voice">
+              <div className="scenario-list">
+                {voiceCatalogue.filter((v) => v.accent === settings.accent).map((v) => (
+                  <button key={v.id} type="button" className={settings.voiceId === v.id ? 'active' : ''} onClick={() => set('voiceId', v.id)}>
+                    {v.name}<span>{v.gender} · {v.note}</span>
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <div className="row">
+              <button type="button" className="btn outline small">Play a sample</button>
             </div>
-          </Field>
+          </div>
         </div>
       </Card>
 
@@ -362,65 +382,86 @@ function ActivitySection() {
   )
 }
 
-function TelephonySection() {
-  const [path, setPath] = useState<'trunk' | 'number'>('trunk')
+function PhoneSystemSection() {
+  const [providerId, setProviderId] = useState('3cx')
   const [revealed, setRevealed] = useState(false)
-  const [number, setNumber] = useState(telephony.numbers[0])
+  const [connected, setConnected] = useState(false)
+  const p = providers.find((x) => x.id === providerId)!
+  const number = dfrntNumber.replace(' (example)', '')
   return (
     <div className="stack">
-      <Card title="How calls reach the agent" actions={<Proposed />} lead="Pick one. Both send calls to the same agent with the same settings.">
-        <div className="pill-list">
-          <button type="button" className={path === 'trunk' ? 'active' : ''} onClick={() => setPath('trunk')}>Trunk from your phone system</button>
-          <button type="button" className={path === 'number' ? 'active' : ''} onClick={() => setPath('number')}>Use a DFRNT number</button>
+      <Card title="Your phone system" actions={<Proposed />} lead="Pick what you use. We fill in everything we can and show the few steps left for you.">
+        <div className="grid-2">
+          <Field label="Phone system">
+            <select
+              value={providerId}
+              onChange={(e) => {
+                setProviderId(e.target.value)
+                setRevealed(false)
+                setConnected(false)
+              }}
+            >
+              {providers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </Field>
+          <div className="stack" style={{ gap: 6 }}>
+            <div className="row"><span className="small muted">How it connects</span><Badge tone={p.method === 'auto' ? 'green' : p.method === 'trunk' ? 'blue' : 'orange'}>{methodLabel[p.method]}</Badge></div>
+            <div className="small muted">{p.needs}</div>
+          </div>
         </div>
       </Card>
 
-      {path === 'trunk' ? (
-        <div className="grid-2">
-          <Card title="SIP trunk details" lead="Add these as a generic SIP trunk in your phone system.">
+      <div className="grid-2">
+        {p.method === 'auto' && (
+          <Card title={`Connect ${p.name}`} lead="Used once to set up the connection. We don't use it for anything else.">
+            <div className="stack">
+              {p.credentials!.map((c) => (
+                <Field key={c.label} label={c.label}><input placeholder={c.placeholder} /></Field>
+              ))}
+              <Field label="Number the agent answers">
+                <select disabled={!connected}>
+                  <option>{connected ? '+64 9 000 0150 (example)' : 'Connect first'}</option>
+                </select>
+              </Field>
+              <div className="row">
+                <button className="btn" onClick={() => setConnected(true)}>{connected ? 'Connected' : `Connect ${p.name}`}</button>
+              </div>
+              {connected && <div className="alert green small">Trunk created and pointed at the agent. Place a test call to check.</div>}
+            </div>
+          </Card>
+        )}
+
+        {p.method === 'trunk' && (
+          <Card title="SIP trunk details" lead="Generated for your company. Enter these in your phone system.">
             <div className="secret">
-              <div className="kv"><span className="small muted" style={{ width: 90 }}>Domain</span><code>{telephony.sipDomain}</code><CopyButton text={telephony.sipDomain} /></div>
-              <div className="kv"><span className="small muted" style={{ width: 90 }}>Username</span><code>{telephony.sipUsername}</code><CopyButton text={telephony.sipUsername} /></div>
+              <div className="kv"><span className="small muted" style={{ width: 90 }}>Domain</span><code>{sip.domain}</code><CopyButton text={sip.domain} /></div>
+              <div className="kv"><span className="small muted" style={{ width: 90 }}>Username</span><code>{sip.username}</code><CopyButton text={sip.username} /></div>
               <div className="kv">
                 <span className="small muted" style={{ width: 90 }}>Password</span>
-                {revealed ? <><code>{telephony.sipPassword}</code><CopyButton text={telephony.sipPassword} /></> : <button className="btn outline small" onClick={() => setRevealed(true)}>Show once</button>}
+                {revealed ? <><code>{sip.password}</code><CopyButton text={sip.password} /></> : <button className="btn outline small" onClick={() => setRevealed(true)}>Show once</button>}
               </div>
             </div>
             {revealed && <div className="alert orange" style={{ marginTop: 12 }}>This password won't be shown again. Store it in your phone system now. Regenerate it here if it's lost.</div>}
           </Card>
-          <Card title="3CX steps">
-            <ol className="steps">
-              <li>In the 3CX Admin Console, open Voice &amp; Chat and add a generic SIP trunk.</li>
-              <li>Enter the domain, username and password from this page. Registration: outbound.</li>
-              <li>Add an outbound rule that sends calls for the agent to this trunk.</li>
-              <li>Point a ring group or an IVR option at that rule, for example option 1 during business hours.</li>
-              <li>Set the transfer number in Settings to the queue the agent hands over to.</li>
-              <li>Place a test call from this page.</li>
-            </ol>
-          </Card>
-        </div>
-      ) : (
-        <div className="grid-2">
-          <Card title="Choose a number" lead="Billed at cost on your monthly invoice.">
-            <div className="scenario-list">
-              {telephony.numbers.map((n) => (
-                <button key={n} type="button" className={number === n ? 'active' : ''} onClick={() => setNumber(n)}>
-                  {n}<span>Auckland local number</span>
-                </button>
-              ))}
+        )}
+
+        {p.method === 'forward' && (
+          <Card title="Your DFRNT number" lead="A local number for the agent, set up when you pick this phone system. Billed at cost.">
+            <div className="secret">
+              <div className="kv"><span className="small muted" style={{ width: 90 }}>Number</span><code>{number}</code><CopyButton text={number} /></div>
             </div>
-            <button className="btn" style={{ marginTop: 12 }}>Use {number.replace(' (example)', '')}</button>
+            <p className="note">Your customers keep calling your normal number. You forward the calls you want answered to this one.</p>
           </Card>
-          <Card title="Forward your calls">
-            <ol className="steps">
-              <li>Keep your existing number. Nothing changes for your customers.</li>
-              <li>In your phone system, forward the calls you want answered to {number.replace(' (example)', '')}.</li>
-              <li>Set the transfer number in Settings to a line the agent can hand back to.</li>
-              <li>Place a test call from this page.</li>
-            </ol>
-          </Card>
-        </div>
-      )}
+        )}
+
+        <Card title={`${p.name} steps`}>
+          <ol className="steps">
+            {p.steps.map((s) => <li key={s}>{s.replace('your DFRNT number', number)}</li>)}
+            <li>Place a test call from this page.</li>
+          </ol>
+          <p className="note">{p.transferBack}</p>
+        </Card>
+      </div>
     </div>
   )
 }

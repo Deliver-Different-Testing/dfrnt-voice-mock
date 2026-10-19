@@ -11,7 +11,7 @@ export type StateFlags = { identified: boolean; session: boolean; transferred: b
 export type Scenario = { id: string; title: string; blurb: string; steps: Step[] }
 
 const P = '/api/v1/threecx/agent'
-const GREETING = "Kia ora, you've reached Urgent Couriers. I can check on a job, give you a price or take a booking. What can I help with?"
+const GREETING = "Hi, you've reached Urgent Couriers. I'm the automated assistant. How can I help?"
 const ID_OK = (name: string, contact: string) => ({
   ok: true,
   say: `Thanks ${contact}, I've got your ${name} account.`,

@@ -20,7 +20,7 @@ export type Settings = {
   persona: string
   greeting: string
   voiceId: string
-  locale: 'en-NZ' | 'en-AU' | 'en-US'
+  accent: 'nz' | 'au' | 'uk' | 'us'
   hoursDays: boolean[] // Mon..Sun
   hoursStart: string
   hoursEnd: string
@@ -42,21 +42,15 @@ export const defaultSettings: Settings = {
   cancelCutoffStatuses: 'not yet allocated',
   handoffNumber: 'Queue 301 (Dispatch)',
   persona: 'Urgent Couriers automated assistant',
-  greeting: "Kia ora, you've reached Urgent Couriers. I can check on a job, give you a price or take a booking. What can I help with?",
-  voiceId: 'aroha',
-  locale: 'en-NZ',
+  greeting: "Hi, you've reached {company}. I'm the automated assistant. How can I help?",
+  voiceId: '5a033900-2ed6-4fd4-a257-707f2688e713', // Maia
+  accent: 'nz',
   hoursDays: [true, true, true, true, true, false, false],
   hoursStart: '07:30',
   hoursEnd: '18:00',
   outsideHours: 'transfer',
 }
 
-export const voices = [
-  { id: 'aroha', label: 'Aroha', note: 'NZ English, warm, measured' },
-  { id: 'tama', label: 'Tama', note: 'NZ English, direct' },
-  { id: 'harper', label: 'Harper', note: 'AU English, neutral' },
-  { id: 'jordan', label: 'Jordan', note: 'US English, neutral' },
-]
 
 export const speeds = [
   { id: 3, label: 'Standard (3 hr)' },
@@ -159,7 +153,7 @@ export const calls: CallRow[] = [
   {
     id: 'rm_7f21', startedAt: '2026-10-17 16:40', durationSec: 148, outcome: 'transferred', intents: ['change delivery time', 'complaint'], client: 'Pacific Dental Supplies', costUsd: 0.19,
     transcript: [
-      { who: 'agent', text: "Kia ora, you've reached Urgent Couriers. I can check on a job, give you a price or take a booking. What can I help with?" },
+      { who: 'agent', text: "Hi, you've reached Urgent Couriers. I'm the automated assistant. How can I help?" },
       { who: 'caller', text: 'Hi, job four eight two one three, can you push the delivery to after three?' },
       { who: 'agent', text: "Thanks, I've got your Pacific Dental Supplies account. I'll ask dispatch to move the deliver-by on UC-48213 to 3 pm." },
       { who: 'caller', text: "Also the driver yesterday left it at the wrong door, I want to talk to someone about that." },
@@ -169,7 +163,7 @@ export const calls: CallRow[] = [
   {
     id: 'rm_7e0c', startedAt: '2026-10-17 15:57', durationSec: 62, outcome: 'contained', intents: ['track a job'], client: 'Northcote Print Co', costUsd: 0.08,
     transcript: [
-      { who: 'agent', text: "Kia ora, you've reached Urgent Couriers. What can I help with?" },
+      { who: 'agent', text: "Hi, you've reached Urgent Couriers. I'm the automated assistant. How can I help?" },
       { who: 'caller', text: "Where's my four eight one nine seven?" },
       { who: 'agent', text: 'Thanks Priya, UC-48197 was collected at 2:10 and the driver is 2 stops away from Takapuna. No signature yet.' },
       { who: 'caller', text: 'Sweet, thanks.' },
@@ -178,7 +172,7 @@ export const calls: CallRow[] = [
   {
     id: 'rm_7d93', startedAt: '2026-10-17 14:18', durationSec: 171, outcome: 'contained', intents: ['quote'], client: 'Harbour Legal', costUsd: 0.21,
     transcript: [
-      { who: 'agent', text: "Kia ora, you've reached Urgent Couriers. What can I help with?" },
+      { who: 'agent', text: "Hi, you've reached Urgent Couriers. I'm the automated assistant. How can I help?" },
       { who: 'caller', text: 'Price to get a box of files from our office to Albany Village?' },
       { who: 'agent', text: 'Is it 12 Queen Street, your usual address, going to Albany Village?' },
       { who: 'caller', text: 'Yes.' },
@@ -189,7 +183,7 @@ export const calls: CallRow[] = [
   {
     id: 'rm_7c41', startedAt: '2026-10-17 11:03', durationSec: 40, outcome: 'message', intents: ['unknown caller'], client: '—', costUsd: 0.05,
     transcript: [
-      { who: 'agent', text: "Kia ora, you've reached Urgent Couriers. What can I help with?" },
+      { who: 'agent', text: "Hi, you've reached Urgent Couriers. I'm the automated assistant. How can I help?" },
       { who: 'caller', text: "I'm after a quote for moving some stock, we don't have an account." },
       { who: 'agent', text: "I couldn't match your number to an account. I'll take a message and someone will call you back." },
     ],
@@ -197,7 +191,7 @@ export const calls: CallRow[] = [
   {
     id: 'rm_7b12', startedAt: '2026-10-17 09:45', durationSec: 95, outcome: 'transferred', intents: ['cancel a job'], client: 'Ellerslie Pharmacy', costUsd: 0.12,
     transcript: [
-      { who: 'agent', text: "Kia ora, you've reached Urgent Couriers. What can I help with?" },
+      { who: 'agent', text: "Hi, you've reached Urgent Couriers. I'm the automated assistant. How can I help?" },
       { who: 'caller', text: 'Cancel four eight one five zero please.' },
       { who: 'agent', text: "I can't cancel jobs on this line yet. Let me put you through to someone." },
     ],
@@ -205,12 +199,12 @@ export const calls: CallRow[] = [
   {
     id: 'rm_7a88', startedAt: '2026-10-16 17:08', durationSec: 118, outcome: 'contained', intents: ['change delivery time'], client: 'Mt Eden Optics', costUsd: 0.14,
     transcript: [
-      { who: 'agent', text: "Kia ora, you've reached Urgent Couriers. What can I help with?" },
+      { who: 'agent', text: "Hi, you've reached Urgent Couriers. I'm the automated assistant. How can I help?" },
       { who: 'caller', text: 'Can four eight one zero two go tomorrow morning instead?' },
       { who: 'agent', text: "I've sent that to dispatch as a request to move UC-48102 to tomorrow before 10. They'll confirm by text." },
     ],
   },
-  { id: 'rm_7a10', startedAt: '2026-10-16 14:33', durationSec: 12, outcome: 'abandoned', intents: [], client: '—', costUsd: 0.01, transcript: [{ who: 'agent', text: "Kia ora, you've reached Urgent Couriers." }] },
+  { id: 'rm_7a10', startedAt: '2026-10-16 14:33', durationSec: 12, outcome: 'abandoned', intents: [], client: '—', costUsd: 0.01, transcript: [{ who: 'agent', text: "Hi, you've reached Urgent Couriers." }] },
 ]
 
 export const toolSchemaSummary = [

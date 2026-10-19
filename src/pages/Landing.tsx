@@ -34,12 +34,12 @@ export default function Landing() {
       </div>
 
       <div className="grid-2">
-        <Card title="3CX: Voice agent" lead="Per-tenant controls in Integration Manager.">
+        <Card title="Voice agent" lead="Per-tenant controls in Integration Manager.">
           <ul className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
             <li><Link to="/voice-agent/settings">Settings</Link>: what the agent may do, and how it sounds</li>
             <li><Link to="/voice-agent/prompts">Prompt versions</Link>: draft, compare, publish, roll back</li>
             <li><Link to="/voice-agent/activity">Activity</Link>: tool calls and call summaries with transcripts</li>
-            <li><Link to="/voice-agent/telephony">Telephony</Link>: connect 3CX or use a DFRNT number</li>
+            <li><Link to="/voice-agent/telephony">Phone system</Link>: pick 3CX, Teams, RingCentral, Twilio and others, with the steps filled in</li>
             <li><Link to="/voice-agent/usage">Usage</Link>: minutes, cost and price</li>
           </ul>
         </Card>

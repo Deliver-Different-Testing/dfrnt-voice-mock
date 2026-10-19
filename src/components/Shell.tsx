@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 const links: { to: string; label: string; end?: boolean }[] = [
   { to: '/', label: 'About this mock', end: true },
-  { to: '/voice-agent', label: '3CX: Voice agent' },
+  { to: '/voice-agent', label: 'Voice agent' },
   { to: '/simulator', label: 'Call simulator' },
 ]
 
