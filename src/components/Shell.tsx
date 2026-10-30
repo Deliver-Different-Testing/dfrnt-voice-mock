@@ -5,6 +5,7 @@ import { useTenant } from '../voice/tenant'
 
 // DFRNT Voice: the tenant app behind the Hub tile.
 const voiceLinks: { to: string; label: string; end?: boolean }[] = [
+  { to: '/hub', label: 'Hub' },
   { to: '/app', label: 'Overview', end: true },
   { to: '/app/training', label: 'Training' },
   { to: '/app/practise', label: 'Practise' },
@@ -35,6 +36,7 @@ function Crumbs() {
     const page = PAGE[pathname.split('/')[2] ?? '']
     return <><span className="dim hide-sm">Hub</span><span className="hide-sm">›</span>DFRNT Voice{page && <><span>›</span>{page}</>}</>
   }
+  if (pathname.startsWith('/hub')) return <>Hub</>
   if (pathname.startsWith('/voice-agent')) {
     return <><span className="dim hide-sm">Integrations</span><span className="hide-sm">›</span>Voice agent<span>›</span>Setup</>
   }

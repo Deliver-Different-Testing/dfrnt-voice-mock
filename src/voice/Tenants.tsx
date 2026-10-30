@@ -11,16 +11,17 @@ export default function Tenants() {
     <div className="stack">
       <div>
         <h1>Tenants</h1>
-        <p className="muted" style={{ marginTop: 4 }}>DFRNT staff only. Tenants with DFRNT Voice switched on in Master Controller. Open one to set it up or support it.</p>
+        <p className="muted" style={{ marginTop: 4 }}>DFRNT staff only. Every tenant, with whether they've upgraded to DFRNT Voice (billed through Master Controller). Open one to set it up or support it.</p>
       </div>
       <Card>
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>Tenant</th><th>Stage</th><th>Number</th><th>Answering</th><th>Test calls</th><th>Minutes, 30 days</th></tr></thead>
+            <thead><tr><th>Tenant</th><th>Add-on</th><th>Stage</th><th>Number</th><th>Answering</th><th>Test calls</th><th>Minutes, 30 days</th></tr></thead>
             <tbody>
               {TENANTS.map((t) => (
                 <tr key={t.id} className="clickable" onClick={() => { setTenantId(t.id); nav('/app') }}>
                   <td><strong className="small">{t.name}</strong><div className="small muted">{t.region} · tenant {t.id}</div></td>
+                  <td>{[5, 14].includes(t.id) ? <Badge tone="green">Paid · trial</Badge> : <Badge>Not upgraded</Badge>}</td>
                   <td><Badge tone={STAGE_TONE[t.stage]}>{STAGE_LABEL[t.stage]}</Badge></td>
                   <td className="small">{t.number ?? '–'}</td>
                   <td className="small">{t.routing}</td>

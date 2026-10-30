@@ -12,13 +12,25 @@ import Settings from './voice/Settings'
 import Number from './voice/Number'
 import Calls from './voice/Calls'
 import Tenants from './voice/Tenants'
+import Hub from './voice/Hub'
+import { useTenant } from './voice/tenant'
+import { Outlet } from 'react-router-dom'
+
+// Tenants without the add-on are sent to the Hub to upgrade. Staff can still open Tenants.
+function Subscribed() {
+  const { subscribed } = useTenant()
+  return subscribed ? <Outlet /> : <Navigate to="/hub" replace />
+}
 
 export default function App() {
   return (
     <TenantProvider>
       <Shell>
         <Routes>
-          <Route path="/" element={<Navigate to="/app" replace />} />
+          <Route path="/" element={<Navigate to="/hub" replace />} />
+          <Route path="/hub" element={<Hub />} />
+          <Route path="/app/tenants" element={<Tenants />} />
+          <Route element={<Subscribed />}>
           <Route path="/app" element={<Overview />} />
           <Route path="/app/training" element={<Training />} />
           <Route path="/app/training/:tab" element={<Training />} />
@@ -27,7 +39,7 @@ export default function App() {
           <Route path="/app/settings/:tab" element={<Settings />} />
           <Route path="/app/number" element={<Number />} />
           <Route path="/app/calls" element={<Calls />} />
-          <Route path="/app/tenants" element={<Tenants />} />
+          </Route>
           <Route path="/about" element={<Landing />} />
           <Route path="/voice-agent" element={<VoiceAgent />} />
           <Route path="/voice-agent/:tab" element={<VoiceAgent />} />

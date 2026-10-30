@@ -377,3 +377,16 @@ table.tbl tr.clickable:hover td { background: var(--surface-2); }
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
 .checklist li::before { content: '\25CB'; margin-right: 8px; color: var(--muted); }
 .checklist li.ok::before { content: '\2713'; color: var(--green); font-weight: 700; }
+
+/* Hub */
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.tile { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 18px; min-height: 140px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); font: inherit; color: var(--text); text-align: left; font-weight: 600; }
+.tile.placeholder { color: var(--muted); }
+.tile-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--gray-bg); display: grid; place-items: center; }
+.tile.voice { cursor: pointer; border-color: var(--accent); }
+.tile.voice .voice-icon { background: var(--ink); color: var(--accent); font-size: 18px; }
+.tile.voice.locked { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); border-style: dashed; }
+.tile.voice:hover { box-shadow: 0 0 0 2px var(--accent); }
+.tile .small { font-weight: 400; color: var(--muted); }
+.price { background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.price .big { font-size: 28px; font-weight: 700; }
