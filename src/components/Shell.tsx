@@ -64,6 +64,9 @@ function TenantPicker() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const { tenant, viewer } = useTenant()
+  const { pathname } = useLocation()
+  // The Hub is tenant-branded and has its own bar, like the real one.
+  if (pathname === '/hub') return <>{children}</>
   const links = viewer === 'staff' ? [...voiceLinks, { to: '/app/tenants', label: 'Tenants' }] : voiceLinks
   return (
     <>
