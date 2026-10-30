@@ -43,7 +43,7 @@ export default function Landing() {
           coming soon") and voice samples (N2).
         </div>
         <div className="row" style={{ marginTop: 20, gap: 10, flexWrap: 'wrap' }}>
-          <Link className="btn" to="/voice-agent">Open the Voice agent tab</Link>
+          <Link className="btn" to="/app">Open the DFRNT Voice app</Link><Link className="btn outline" to="/voice-agent">Open the Voice agent tab</Link>
           <Link className="btn outline" to="/simulator">Try the call simulator</Link>
           <Link className="btn outline" to="/3cx">See the 3CX page</Link>
           <a className="btn ghost" href={SPEC} target="_blank" rel="noreferrer">Read the spec</a>
